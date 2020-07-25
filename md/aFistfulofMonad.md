@@ -17,7 +17,7 @@
 
 
 
-# A _Fistful_(as much as a person can hold in their clenched hand) of Monads
+# A _Fistful_ (as much as a person can hold in their clenched hand) of Monads
 ---
 ## Functor
 When we first talked about **functors**, 
