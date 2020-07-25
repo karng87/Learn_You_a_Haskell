@@ -10,13 +10,6 @@
         fail :: String -> m a  
         fail msg = error msg 
 ```
-
-
-
-
-
-
-
 # A _Fistful_ (as much as a person can hold in their clenched hand) of Monads
 ---
 ## Functor
