@@ -1512,9 +1512,11 @@ just by inserting the appropriate(suitable or proper in the circumstances)
 applicative operators.
 
 You can view lists
-as non-deterministic computations(the action of mathematical calculation).
+as __non-deterministic__ computations(the action of mathematical calculation).
 A value like 100 or "what" can be viewed
 as a deterministic computation that has only one result,
+
+![non-deterministic](../img/Nondeterministic.png)
 
 whereas(in contrast)
 a list like [1,2,3] can be viewed as a computation

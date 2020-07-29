@@ -9,12 +9,15 @@
 
         fail :: String -> m a  
         fail msg = error msg 
+
+    instance Monad [] where  
+        return x = [x]  
+        xs >>= f = concat (map f xs)  
+        fail _ = []  
+
+
+
 ```
-
-
-
-
-
 
 
 # A _Fistful_(as much as a person can hold in their clenched hand) of Monads
@@ -124,6 +127,8 @@ Ah, cool, so now that we treat them as applicative values,
 Maybe a values represent computations that might have failed, 
 [a] values represent computations that have several results (non-deterministic computations), 
 IO a values represent values that have side-effects, etc.
+
+![non-deterministic](../img/Nondeterministic.png)
 
 Monads are a natural extension of applicative functors and with them we're concerned with this: 
 if you have a value with a context, m a, how do you apply to it a function that 
@@ -991,6 +996,193 @@ instead of causing a program-wide failure, which is pretty neat.
 
 ![dead cat](../img/deadcat.png)
 ## The list monad
+
+So far, 
+we've seen how Maybe values can be viewed as values with a failure context 
+and how we can incorporate failure handling into our code by 
+using >>= to feed them to functions. In this section, we're going to 
+take a look at how to use the monadic aspects of lists to bring 
+non-determinism into our code in a clear and readable manner.
+
+We've already talked about how lists represent non-deterministic values 
+when they're used as applicatives. A value like 5 is deterministic. 
+It has only one result and we know exactly what it is. 
+On the other hand, a value like [3,8,9] contains several results, 
+so we can view it as one value that is actually many values at the same time. 
+Using lists as applicative functors showcases this non-determinism nicely:
+
+```haskell
+
+    ghci> (*) <$> [1,2,3] <*> [10,100,1000]
+        [10,100,1000,20,200,2000,30,300,3000]
+
+```
+All the possible combinations of multiplying elements from the left list 
+with elements from the right list are included in the resulting list. 
+
+When dealing with non-determinism, 
+there are many choices that we can make, 
+so we just try all of them, and so the result is a non-deterministic value as well,
+only it has many more results.
+
+This context of non-determinism translates to monads very nicely. 
+Let's go ahead and see what the Monad instance for lists looks like:
+
+```haskell
+instance Monad [] where
+    return x = [x]
+    xs >>= f = concat (map f xs)
+    fail _ = []
+```
+return does the same thing as pure, so we should already be familiar with return 
+for lists. It takes a value and puts it in a minimal default context that 
+still yields that value. In other words, it makes a list that has 
+only that one value as its result. This is useful for when we want to just 
+wrap a normal value into a list so that it can interact with 
+non-deterministic values.
+
+To understand how >>= works for lists, 
+it's best if we take a look at it in action to gain some intuition first. 
+
+__>>=__ is about taking a value with a context (a monadic value) and feeding it 
+to a function that takes a normal value and returns one that has context. 
+
+If that function just produced a normal value instead of one with a context, 
+__>>=__ wouldn't be so useful because after one use, the context would be lost. 
+
+Anyway, let's try feeding a non-deterministic value to a function:
+
+```haskell
+    ghci> [3,4,5] >>= \x -> [x,-x]  
+        [3,-3,4,-4,5,-5]  
+```
+When we used >>= with Maybe, 
+the monadic value was fed into the function while taking care of possible failures.
+Here, it takes care of non-determinism for us. 
+
+[3,4,5] is a non-deterministic value and we feed it into a function that 
+returns a non-deterministic value as well. The result is also non-deterministic, 
+and it features all the possible results of taking elements from 
+the list [3,4,5] and passing them to the function \x -> [x,-x]. 
+
+This function takes a number and produces two results: 
+one negated and one that's unchanged. So when we use >>= to feed this list 
+to the function, every number is negated and also kept unchanged. 
+
+The x from the lambda takes on every value from the list that's fed to it.
+
+To see how this is achieved, we can just follow the implementation. 
+
+First, 
+we start off with the list [3,4,5]. Then, we map the lambda over it and 
+the result is the following:
+
+```haskell 
+    [[3,-3],[4,-4],[5,-5]]  
+```
+The lambda is applied to every element and we get a list of lists. Finally, 
+we just flatten the list and _voila_(there you are)! We've applied 
+a non-deterministic function to a non-deterministic value!
+
+Non-determinism also includes support for failure. 
+The empty list [] is pretty much the equivalent of Nothing, because it 
+signifies the absence of a result. That's why failing is just defined as 
+the empty list. The error message gets thrown away. Let's play around 
+with lists that fail:
+
+```haskell
+
+    ghci> [] >>= \x -> ["bad","mad","rad"]
+        []
+    ghci> [1,2,3] >>= \x -> []
+        []
+
+```
+In the first line, an empty list is fed into the lambda. Because the list 
+has no elements, none of them can be passed to the function and so the result 
+is an empty list. This is similar to feeding Nothing to a function. 
+In the second line, each element gets passed to the function, but the element 
+is ignored and the function just returns an empty list. Because the function 
+fails for every element that goes in it, the result is a failure.
+
+Just like with Maybe values, we can chain several lists with >>=, 
+propagating the non-determinism:
+
+```haskell
+
+    ghci> fmap (\n-> ['a','b']) [1,2]
+        ["ab","ab"] -- [['a','b'],['a','b']]
+
+    ghci> [1,2] >>= \n -> ['a','b']
+        "abab" -- ['a','b','a','b']
+    ghci> [1,2] >>= \n -> ['a','b'] >>= \ch -> return (n,ch)
+        [(1,'a'),(1,'b'),(2,'a'),(2,'b')]
+
+
+```
+The list [1,2] gets bound to n and ['a','b'] gets bound to ch. Then, we do 
+return (n,ch) (or [(n,ch)]), which means taking a pair of (n,ch) and putting it 
+in a default minimal context. 
+
+In this case, 
+it's making the smallest possible list that still 
+presents (n,ch) as the result and 
+_features_(have as a distinctive attribute) as little non-determinism as possible. 
+
+Its effect on the context is minimal. 
+
+What we're saying here is this: 
+- for every element in [1,2], 
+- go over every element in ['a','b'] and 
+- produce a tuple of one element from each list.
+
+Generally speaking, because return takes a value and wraps it in a minimal context, 
+it doesn't have any extra effect 
+(like failing in Maybe or resulting in more non-determinism for lists) 
+but it does present something as its result.
+
+When you have _non-deterministic values interacting_, 
+you can view their computation _as a tree_ where every possible result 
+in a list represents a separate branch.
+
+![non-deterministic values interacting](../img/Nondeterministic.png) ![computation as a tree](../img/concatmap.png)
+
+Here's the previous expression rewritten in do notation:
+
+```haskell
+
+    listOfTuples :: [(Int,Char)]
+    listOfTuples = do
+        n <- [1,2]
+        ch <- ['a','b']
+        return (n,ch)
+```
+This makes it a bit more obvious that n takes on every value from [1,2] and 
+ch takes on every value from ['a','b']. Just like with Maybe, 
+we're extracting the elements from the monadic values and 
+treating them like normal values and >>= takes care of the context for us. 
+
+The context in this case is non-determinism.
+
+Using lists with do notation really reminds me of something we've seen before. 
+Check out the following piece of code:
+
+```hasekll
+    ghci> [ (n,ch) | n <- [1,2], ch <- ['a','b'] ]  
+        [(1,'a'),(1,'b'),(2,'a'),(2,'b')]  
+
+````
+
+
+
+
+
+
+
+
+
+
+
 
 
 
