@@ -2,7 +2,7 @@
 
 # Functor
 
-```haskel
+```haskell
 ------------------------
 class Functor f where --
 ------------------------
@@ -108,8 +108,99 @@ class Monoid m where --
 
   instance Monad ((->) r) where
       f >>= k = \ r -> k (f r) r
-```
 
+    (>>=) :: m a -> (a -> mb) -> m b
+    (>>=) :: (->r) a -> (a -> ((->)r b) -> (->)r b
+    (>>=) f k = f >>= k
+            = \r -> k (f r)
+
+            f = (->r) a = r -> a
+            k = a -> (->)r b = a -> r -> b
+            result = (->)r b
+                k a = (->)r b
+                a = f r
+                k f r = b
+                \r -> b = (->)r b
+                    = (->)r (k f r)
+                    = \r -> k (f r)
+
+```
+# State Monad
+```haskell
+    data S s a = S { runS :: \s -> (a,s) }
+        runS :: S s a -> (s -> (a,s))
+        runS :: S s a -> s -> (a,s)
+        runS S s a = \s -> (a,s)
+
+    instance Monad S s where
+        return  a :: a -> S s a
+        retrun a = S $ \a -> (a,s)
+
+        (>>=) f k :: S s a -> (a -> S s b) -> S s b
+        (>>=) f k = S $ \s -> let (a,s') = runS f s
+                                in runS (k a) s'
+            -- f = S s a
+            -- k = \a -> S s b
+                -- k a = S s b
+                        :: S $ \s ->
+                        ::: let (a,s') = runS f s
+                        ::: in runS (k a) s'
+
+    read :: S s s  -- initialize?
+    read = S $ \s -> (s,s)
+
+    write :: s -> S s ()
+    write s = S $ \_ -> ((),s)
+        -- :: appy the write function's arguement and then do not change the applied state with \_ ->
+
+    foo :: S Int Int
+    foo = do
+            x <- read
+            write (x+1)
+            x <- read
+            return (x+2)
+
+            =   read >>= (\x -> write (x+1) >>= (\_ -> read  >>= \x -> return (x+3)))
+
+    test = foo 0
+            =   read >>= (\x -> write (x+1) >>= (\_ -> read  >>= \x -> return (x+3))) 0
+                = S $ \s -> let (a,s') = runS read 0; in runS (k a) s'
+                    ::: read 0 => (0,0) = S Int Int = S $ \s -> (0,0) :: S s a = S $ \s -> (a,s)
+                            :: a = 0, s = 0;
+
+                = S $ \s -> runS (k 0) 0
+                    :: (0,0)
+                    ::: k 0 0
+                = S $ \s -> runS (k) 0 0
+                = S $ \s -> runS (\x -> write (x+1) >>= (\_ -> read  >>= \x -> return (x+3))) 0 0
+                = S $ \s -> runS (\0 -> write (0+1) >>= (\_ -> read  >>= \x -> return (x+3)))  0
+                = S $ \s -> runS (\0 -> write (0+1) >>= (\_ -> read  >>= \x -> return (x+3)))  0
+                = S $ \s -> runS (write (1) >>= (\_ -> read  >>= \x -> return (x+3)))  0
+                                    :: runS write 1 0  = S $ \_ -> ((),x) => write 1 = S $ \_ -> ((),1)
+                                        () = 0 :: read 0 => (0,0)
+                = S $ \s -> runS (write (1) >>= (\_ -> read  >>= \x -> return (x+3))) 0
+                = S $ \s -> runS ( S $ \s ->let (a,s') = runS write 1 0; runS k a s' ) 0
+                                    :: runS S $ \_ -> ((),1) 0 => ((),1) ()=0;
+
+                = S $ \s -> runS ( S $ \s -> runS k 0 1 )
+                = S $ \s -> runS ( S $ \s -> runS (\_ -> read >>= \x -> return (s+3)) 0 1 )
+                = S $ \s -> runS ( S $ \s -> runS (\_ -> read >>= \x -> return (s+3)) 0 1 )
+                                    ::(\_ -> read) 0 => read = S $ \s -> (s,s) => read
+                                    :: runS read 1 => \s -> (s,s) => (1,1)
+
+                = S $ \s -> runS ( S $ \s -> runS (S $ \s -> runS k a s')
+                = S $ \s -> runS ( S $ \s -> runS (S $ \s -> runS k 1 1)
+                = S $ \s -> runS ( S $ \s -> runS (S $ \s -> runS (\x -> return (x+3) 1 1)
+                                                                ::: \1 -> return (x+3) => return 4 => S $ \s -> (4,s)
+                = S $ \s -> runS ( S $ \s -> runS (S $ \s -> runS (S $ \s -> (4,s) 1)
+                = S $ \s -> runS ( S $ \s -> runS (S $ \s -> runS (S $ \s -> (4,1))
+                = S $ \s -> runS ( S $ \s -> runS (S $ \s ->(4,1))
+                = S $ \s -> runS ( S $ \s -> (4,1))
+                = S $ \s -> runS (4,1)
+                = S $ \s -> (4,1)
+                = S {runS :: \s -> (4,1)}
+
+```
 ---
 
 # Functors, Applicative Functors and Monoids
@@ -125,11 +216,11 @@ allows us to implement polymorphism on a much higher level than possible in othe
 
 We don't have to think about types belonging to a big hierarchy of types.
 
-Instead,  
+Instead,
 we think about
 
 - what the types can
-  - act like  
+  - act like
      and then
   - connect them with the appropriate typeclasses.
 
@@ -207,7 +298,7 @@ and I'll give you a box with a **_b_** (or several of them) inside it.
 
 It kind of applies the function to the **_element_** **inside the box**.
 
-A word of advice.  
+A word of advice.
 Many times the box analogy is used to help you get some intuition for how functors work,
 and later,
 we'll probably use the same analogy for applicative functors and monads.
@@ -219,32 +310,32 @@ to still hold some truth.
 A more correct term for what a functor is
 would be **computational context**.
 
-The **context**  
-might be that the computation can **have a value**  
-or  
-it might **have failed** (Maybe and Either a)  
-or  
-that there might be **more values** (lists),  
+The **context**
+might be that the computation can **have a value**
+or
+it might **have failed** (Maybe and Either a)
+or
+that there might be **more values** (lists),
 stuff like that.
 
 If we want to make **a type constructor** **_an instance of Functor_**,
 
-it has to have a **kind** of  
-**_* -> *_**  
+it has to have a **kind** of
+**_* -> *_**
 ,which means
 
 - that it **has to** take exactly
 - one **concrete type**
 - as a **type parameter**.
 
-For example,  
-**Maybe** can be made an instance  
-because it takes **one type parameter** to produce **a concrete type**,  
+For example,
+**Maybe** can be made an instance
+because it takes **one type parameter** to produce **a concrete type**,
 like Maybe Int or Maybe String.
 
-If a **type constructor** takes two parameters,  
-like Either,  
-we **have to** partially apply the **type constructor**  
+If a **type constructor** takes two parameters,
+like Either,
+we **have to** partially apply the **type constructor**
 until it only takes one type parameter.
 
 So we can't write instance Functor Either where,
@@ -417,8 +508,8 @@ As you probably know,
 **intersperse '-' . reverse . map toUpper**
 is a function that takes a string, maps toUpper over it,
 the applies reverse to that result and then applies intersperse '-' to that result.
-It's like writing  
-`(\xs -> intersperse '-' (reverse (map toUpper xs)))`  
+It's like writing
+`(\xs -> intersperse '-' (reverse (map toUpper xs)))`
 ,only prettier.
 
 Another instance of Functor that we've been dealing with all along but didn't know was a Functor
@@ -475,7 +566,7 @@ But it doesn't, so we have to write it in the former fashion.
 First of all,
 let's think about fmap's type.
 
-It's  
+It's
 `fmap :: (a -> b) -> f a -> f b`
 
 Now what we'll do is mentally replace all the f's,
@@ -594,16 +685,16 @@ we get back a function that takes the number of parameters that we left out
 (if we're thinking about functions as taking several parameters again).
 
 > So...
-> a -> b -> c  
-> can be written as  
-> a -> (b -> c),  
+> a -> b -> c
+> can be written as
+> a -> (b -> c),
 > to make the currying more apparent.
 
 ![man](http://s3.amazonaws.com/lyah/lifter.png)
 
-In the same vein, (같은 맥락에서, similar topics)  
-if we write  
-`fmap :: (a -> b) -> (f a -> f b)`  
+In the same vein, (같은 맥락에서, similar topics)
+if we write
+`fmap :: (a -> b) -> (f a -> f b)`
 we can think of fmap not as a function
 that takes one function and a functor
 and returns a functor,
@@ -648,8 +739,8 @@ and lifts that function so that it operates on functors.
 
 Both views are correct and in Haskell, equivalent.
 
-The type  
-`fmap (replicate 3) :: (Functor f) => f a -> f [a]`  
+The type
+`fmap (replicate 3) :: (Functor f) => f a -> f [a]`
 means that the function will work on any functor.
 
 What exactly it will do depends on which functor we use it on.
@@ -956,14 +1047,14 @@ found in the **_Control.Applicative_** module.
 ---
 
 > As you know,
-> functions in Haskell are  
-> **_curried by default_**,  
-> which means  
+> functions in Haskell are
+> **_curried by default_**,
+> which means
 > that a function that seems to take several parameters actually
-> takes  
-> just _one parameter_  
-> and  
-> returns _a function_  
+> takes
+> just _one parameter_
+> and
+> returns _a function_
 > that takes the next parameter and so on.
 
 ---
@@ -1693,11 +1784,11 @@ If you ever find yourself binding some I/O actions to names and then
 calling some function on them and presenting that
 as the result by using return,
 
-consider using the applicative style because  
-it's _arguably_(in a way that can be shown to be true)  
+consider using the applicative style because
+it's _arguably_(in a way that can be shown to be true)
 a bit more _concise_(short and clear) and _terse_(using few words).
 
-Another instance of Applicative is **(->) r**, so functions.  
+Another instance of Applicative is **(->) r**, so functions.
 They are _rarely_(not often, seldom) used with the applicative style outside of
 _code golf_(the shortest possible source code),
 but they're still interesting as applicatives,
